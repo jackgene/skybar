@@ -15,6 +15,7 @@ dependencies {
   compile 'org.hdrhistogram:HdrHistogram:2.1.4'
   compile 'net.openhft:koloboke-impl-jdk8:0.6.6'
   compile "org.slf4j:slf4j-api:${deps.slf4j}"
+  compile 'org.eclipse.jgit:org.eclipse.jgit:3.7.1.201504261725-r'
 
   runtime "org.slf4j:slf4j-simple:${deps.slf4j}"
 

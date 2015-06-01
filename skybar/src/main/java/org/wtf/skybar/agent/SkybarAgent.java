@@ -1,15 +1,18 @@
 package org.wtf.skybar.agent;
 
+import org.eclipse.jgit.api.Git;
+import org.eclipse.jgit.api.ResetCommand;
+import org.eclipse.jgit.api.errors.NoHeadException;
+import org.eclipse.jgit.lib.Repository;
+import org.eclipse.jgit.storage.file.FileRepositoryBuilder;
+import org.eclipse.jgit.util.IO;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.wtf.skybar.registry.SkybarRegistry;
 import org.wtf.skybar.transform.SkybarTransformer;
 import org.wtf.skybar.web.WebServer;
 
-import java.io.File;
-import java.io.FileInputStream;
-import java.io.IOException;
-import java.io.InputStreamReader;
+import java.io.*;
 import java.lang.instrument.Instrumentation;
 import java.nio.charset.StandardCharsets;
 import java.util.HashMap;
@@ -32,6 +35,10 @@ public class SkybarAgent {
         }
 
         instrumentation.addTransformer(new SkybarTransformer(classNameRegex), false);
+
+        final String sourceGitUrl = config.getSourceGitUrl();
+        if (sourceGitUrl != null) cloneOrPullSource(sourceGitUrl);
+
         int port = config.getWebUiPort();
         new WebServer(SkybarRegistry.registry, port, getSourcePathString(config)).start();
         logger.info("Skybar started on port " + port + " against classes matching " + classNameRegex);
@@ -67,6 +74,47 @@ public class SkybarAgent {
             return new File("src/main/java").getCanonicalPath();
         }
         return sourceLookupPath;
+    }
+
+    private static void cloneOrPullSource(final String gitUrl) throws Exception {
+        final File localRepo = new File("skybar/sources");
+        final Repository repo = FileRepositoryBuilder.create(new File("skybar/sources", ".git"));
+
+        try {
+            System.out.println("Attempting Git pull.");
+            new Git(repo).pull().call();
+            // TODO what if the repository config has changed since it was cloned?
+            System.out.println("Git pull succeeded.");
+        } catch (NoHeadException e) {
+            System.out.println("Git pull failed, attempting Git clone.");
+            final Git cloneResult = Git.cloneRepository().
+                setURI(gitUrl).
+                setDirectory(localRepo).
+                setCloneAllBranches(true).
+                call();
+            cloneResult.close();
+            System.out.println("Git clone succeeded.");
+        }
+
+        final File[] versionFiles = new File(".").
+            listFiles(
+                new FileFilter() {
+                    @Override
+                    public boolean accept(File pathname) {
+                        return pathname.getName().endsWith(".version");
+                    }
+                }
+            );
+        if (versionFiles.length > 0) {
+            final String versionString =
+                new String(
+                    IO.readFully(versionFiles[0])
+                ).
+                trim();
+            final String gitHash = versionString.substring(versionString.lastIndexOf('-') + 1);
+            System.out.println("Attempting Git reset hard " + gitHash);
+            new Git(repo).reset().setMode(ResetCommand.ResetType.HARD).setRef(gitHash).call();
+        }
     }
 
     private static Map<String, String> toMap(Properties props) {

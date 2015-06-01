@@ -47,6 +47,11 @@ class SkybarConfig {
     }
 
     @Nullable
+    String getSourceGitUrl() {
+        return getConfigValue("skybar.source.gitUrl", null);
+    }
+
+    @Nullable
     private String getConfigValue(String propName, @Nullable String defaultValue) {
         if (systemProps.containsKey(propName)) {
             return systemProps.get(propName);
